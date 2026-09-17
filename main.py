@@ -1,21 +1,13 @@
-# requests: package — used to call external APIs
-import requests
-
-# dotenv: package — loads variables from the .env file
+import pandas as pd
 from dotenv import load_dotenv
-
-# langchain.agents: module — create_agent creates an AI agent
 from langchain.agents import create_agent
-
-# langchain.tools: module — @tool converts a function into an agent tool
 from langchain.tools import tool
+from langchain_groq import ChatGroq
 
-# langchain_google_genai: package
-# ChatGoogleGenerativeAI: class — connects LangChain to Gemini
-from langchain_google_genai import ChatGoogleGenerativeAI
+from data_loader import load_reviews
+import json
 
 
-# Converts Gemini's response into readable text
 def get_text(content):
     if isinstance(content, str):
         return content
@@ -30,95 +22,121 @@ def get_text(content):
     return str(content)
 
 
-# Load the Gemini API key from .env
 load_dotenv()
 
-
-# Create the Gemini model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-3.6-flash"
+llm = ChatGroq(
+    model="openai/gpt-oss-20b"
 )
 
 
-# @tool converts this function into a tool the agent can call
 @tool
 def analyze_mood(message: str) -> str:
-    """Analyze the mood and emotion expressed in a message."""
+    """Analyze the sentiment and emotion expressed in a customer review."""
 
-    print("\n[TOOL] Mood analysis tool called!")
-    print("[TOOL] Sending message to Gemini...")
-
-    # Send the message to Gemini for analysis
     response = llm.invoke(
         f"""
-        Analyze the mood of this message.
+        Analyze the following customer review about a mobile phone.
 
-        Message:
+        Review:
         {message}
 
-        Give:
-        1. Mood
-        2. Emotion
-        3. Short explanation
+        Your task is to identify the customer's overall sentiment and
+        primary emotion based ONLY on the review content.
+
+        Sentiment must be exactly ONE of:
+        - Positive: The customer expresses overall satisfaction or approval.
+        - Neutral: The customer is mainly factual, balanced, or shows no clear
+        positive or negative feeling.
+        - Negative: The customer expresses overall dissatisfaction, criticism,
+        or a clearly negative experience.
+
+        Emotion must be exactly ONE primary emotion from:
+        Happy, Satisfied, Excited, Neutral, Disappointed, Frustrated,
+        Angry, Sad, Confused.
+
+        Choose the emotion that best represents the customer's main feeling.
+        Do not simply infer emotion from the rating.
+        Consider the Review Title, Category, and Comments together.
+        If the review contains both positive and negative points, determine
+        the overall sentiment from the customer's overall experience.
+
+        Return ONLY valid JSON.
+        Do not include Markdown, explanations, or additional text.
+
+        Required format:
+        {{
+            "sentiment": "Positive/Neutral/Negative",
+            "emotion": "one-word emotion"
+        }}
         """
     )
-
-    print("[TOOL] Gemini response received!")
 
     return get_text(response.content)
 
 
-# Create an agent and provide it with the mood-analysis tool
 agent = create_agent(
     model=llm,
     tools=[analyze_mood],
     system_prompt="""
-    You are MoodMate, a mood-analysis assistant.
-    When given a message, use the analyze_mood tool.
+    You are MoodMate, a customer feedback analysis assistant for mobile phone reviews.
+
+    Your task is to analyze customer feedback for sentiment and emotion.
+
+    Always use the analyze_mood tool to perform the analysis.
+    Do not perform the analysis yourself.
+
+    After the tool returns its result, return ONLY the exact JSON produced by the tool.
+    Do not modify the values.
+    Do not add explanations, Markdown, headings, or additional text.
     """
 )
 
 
-# Fetch a message from an external API
-url = "https://jsonplaceholder.typicode.com/comments/1"
+reviews = load_reviews(limit=15) 
 
-print("[API] Sending GET request...")
+results = []
 
-response = requests.get(url)
+print("Analyzing customer reviews...")
 
-print("[API] Response received!")
-print("[API] Status code:", response.status_code)
+for review in reviews:
 
-# Convert JSON response into a Python dictionary
-data = response.json()
+    result = agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""
+                    Analyze this customer review:
 
-# Extract the message from the API response
-message = data["body"]
+                    Review Title: {review["Review Title"]}
+                    Category: {review["Category"]}
+                    Comments: {review["Comments"]}
+                    """
+                }
+            ]
+        }
+    )
 
-print("\nMessage received from external API:")
-print(message)
+    analysis = get_text(result["messages"][-1].content)
+    analysis = json.loads(analysis)
+
+    results.append({
+        "Review Title": review["Review Title"],
+        "Rating": review["Rating"],
+        "Category": review["Category"],
+        "Comments": review["Comments"],
+        "Sentiment": analysis["sentiment"],
+        "Emotion": analysis["emotion"]
+    })
 
 
-# Send the message to the LangChain agent
-print("\n[AGENT] Starting MoodMate agent...")
 
-result = agent.invoke(
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": f"Analyze the mood of this message:\n{message}"
-            }
-        ]
-    }
+output_df = pd.DataFrame(results)
+
+output_df.to_excel(
+    "MoodMate_Analysis.xlsx",
+    index=False
 )
 
-
-# Display the agent's final response
-print("\n[AGENT] Agent execution completed!")
-
-print("\nFinal answer:")
-
-final_content = result["messages"][-1].content
-
-print(get_text(final_content))
+print("\nAnalysis completed!")
+print("Output saved as MoodMate_Analysis.xlsx")
