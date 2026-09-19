@@ -1,8 +1,14 @@
 import pandas as pd
 from dotenv import load_dotenv
+
 from langchain.agents import create_agent
+# langchain → package, agents → module, create_agent → function (creates agents)
+
 from langchain.tools import tool
+# langchain → package, tools → module, tool → decorator (creates tools)
+
 from langchain_groq import ChatGroq
+# langchain_groq → module/package, ChatGroq → class (Groq LLM)
 
 from data_loader import load_reviews
 import json
