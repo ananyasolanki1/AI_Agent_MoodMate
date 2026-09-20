@@ -1,109 +1,47 @@
+import json
 import pandas as pd
+
 from dotenv import load_dotenv
-
-from langchain.agents import create_agent
-# langchain → package, agents → module, create_agent → function (creates agents)
-
-from langchain.tools import tool
-# langchain → package, tools → module, tool → decorator (creates tools)
-
 from langchain_groq import ChatGroq
-# langchain_groq → module/package, ChatGroq → class (Groq LLM)
 
 from data_loader import load_reviews
-import json
+from tools.mood_tool import create_mood_tool
+from tools.recommendation_tool import create_recommendation_tool
+from agents.moodmate_agent import create_moodmate_agent
 
 
-def get_text(content):
-    if isinstance(content, str):
-        return content
-
-    if isinstance(content, list):
-        return "\n".join(
-            item["text"]
-            for item in content
-            if item.get("type") == "text"
-        )
-
-    return str(content)
-
-
+# Load environment variables
 load_dotenv()
 
+
+# Create LLM
 llm = ChatGroq(
     model="openai/gpt-oss-20b"
 )
 
 
-@tool
-def analyze_mood(message: str) -> str:
-    """Analyze the sentiment and emotion expressed in a customer review."""
+# Create tools
+mood_tool = create_mood_tool(llm)
 
-    response = llm.invoke(
-        f"""
-        Analyze the following customer review about a mobile phone.
-
-        Review:
-        {message}
-
-        Your task is to identify the customer's overall sentiment and
-        primary emotion based ONLY on the review content.
-
-        Sentiment must be exactly ONE of:
-        - Positive: The customer expresses overall satisfaction or approval.
-        - Neutral: The customer is mainly factual, balanced, or shows no clear
-        positive or negative feeling.
-        - Negative: The customer expresses overall dissatisfaction, criticism,
-        or a clearly negative experience.
-
-        Emotion must be exactly ONE primary emotion from:
-        Happy, Satisfied, Excited, Neutral, Disappointed, Frustrated,
-        Angry, Sad, Confused.
-
-        Choose the emotion that best represents the customer's main feeling.
-        Do not simply infer emotion from the rating.
-        Consider the Review Title, Category, and Comments together.
-        If the review contains both positive and negative points, determine
-        the overall sentiment from the customer's overall experience.
-
-        Return ONLY valid JSON.
-        Do not include Markdown, explanations, or additional text.
-
-        Required format:
-        {{
-            "sentiment": "Positive/Neutral/Negative",
-            "emotion": "one-word emotion"
-        }}
-        """
-    )
-
-    return get_text(response.content)
+recommendation_tool = create_recommendation_tool(llm)
 
 
-agent = create_agent(
-    model=llm,
-    tools=[analyze_mood],
-    system_prompt="""
-    You are MoodMate, a customer feedback analysis assistant for mobile phone reviews.
-
-    Your task is to analyze customer feedback for sentiment and emotion.
-
-    Always use the analyze_mood tool to perform the analysis.
-    Do not perform the analysis yourself.
-
-    After the tool returns its result, return ONLY the exact JSON produced by the tool.
-    Do not modify the values.
-    Do not add explanations, Markdown, headings, or additional text.
-    """
+# Create MoodMate agent
+agent = create_moodmate_agent(
+    llm,
+    mood_tool,
+    recommendation_tool
 )
 
 
-reviews = load_reviews(limit=15) 
+# Load reviews
+reviews = load_reviews(limit=5)
+
 
 results = []
 
-print("Analyzing customer reviews...")
 
+# Process each review
 for review in reviews:
 
     result = agent.invoke(
@@ -112,9 +50,12 @@ for review in reviews:
                 {
                     "role": "user",
                     "content": f"""
-                    Analyze this customer review:
+                    Analyze this customer review and provide
+                    alternative phone recommendations.
 
+                    Product Name: {review["Product Name"]}
                     Review Title: {review["Review Title"]}
+                    Rating: {review["Rating"]}
                     Category: {review["Category"]}
                     Comments: {review["Comments"]}
                     """
@@ -123,26 +64,37 @@ for review in reviews:
         }
     )
 
-    analysis = get_text(result["messages"][-1].content)
-    analysis = json.loads(analysis)
+    # Get final agent response
+    final_response = result["messages"][-1].content
 
+    # Convert JSON string into Python dictionary
+    analysis = json.loads(final_response)
+
+    # Store result
     results.append({
+        "Product Name": review["Product Name"],
         "Review Title": review["Review Title"],
         "Rating": review["Rating"],
         "Category": review["Category"],
         "Comments": review["Comments"],
         "Sentiment": analysis["sentiment"],
-        "Emotion": analysis["emotion"]
+        "Emotion": analysis["emotion"],
+        "Suggestion 1": analysis["suggestion_1"],
+        "Suggestion 2": analysis["suggestion_2"],
+        "Recommendation Message": analysis["message"]
     })
 
 
-
+# Create output DataFrame
 output_df = pd.DataFrame(results)
 
+
+# Save results
 output_df.to_excel(
     "MoodMate_Analysis.xlsx",
     index=False
 )
+
 
 print("\nAnalysis completed!")
 print("Output saved as MoodMate_Analysis.xlsx")
