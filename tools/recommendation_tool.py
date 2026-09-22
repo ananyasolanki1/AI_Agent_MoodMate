@@ -8,6 +8,7 @@ from services.product_service import (
 
 
 def get_text(content):
+    # Extract text from the LLM response
     if isinstance(content, str):
         return content
 
@@ -36,7 +37,7 @@ def create_recommendation_tool(llm):
         price, review category, comments, sentiment and emotion.
         """
 
-        # 1. Find the current phone
+        # Get the current phone from MySQL
         current_product = get_product(product_name)
 
         if current_product is None:
@@ -44,9 +45,10 @@ def create_recommendation_tool(llm):
                 "error": f"Product '{product_name}' not found."
             })
 
-        current_price = float(current_product["Price"])
+        # Get the current phone's price
+        current_price = float(current_product["price"])
 
-        # 2. Find phones in a similar price range
+        # Get similar-priced phones from MySQL
         candidates = get_similar_price_products(
             product_name,
             current_price
@@ -57,18 +59,19 @@ def create_recommendation_tool(llm):
                 "error": "Not enough similar-price phones available."
             })
 
-        # 3. Prepare candidate information for the LLM
+        # Convert database rows into text for the LLM
         candidate_text = "\n".join(
-            f"- {row['Product Name']} | Price: ₹{row['Price']} | "
-            f"Display: {row['Display']} | "
-            f"Camera: {row['Camera']} | "
-            f"Battery: {row['Battery (mAh)']} mAh | "
-            f"Processor: {row['Processor']} | "
-            f"Key Qualities: {row['Key Qualities']}"
-            for _, row in candidates.iterrows()
+            f"- {row['product_name']} | "
+            f"Price: ₹{row['price']} | "
+            f"Display: {row['display']} | "
+            f"Camera: {row['camera']} | "
+            f"Battery: {row['battery']} mAh | "
+            f"Processor: {row['processor']} | "
+            f"Key Qualities: {row['key_qualities']}"
+            for row in candidates
         )
 
-        # 4. Ask LLM to choose the most relevant alternatives
+        # Ask the LLM to choose the two most suitable alternatives
         response = llm.invoke(
             f"""
             You are a mobile phone recommendation assistant.
@@ -109,17 +112,6 @@ def create_recommendation_tool(llm):
             Also generate ONE short, kind, polite, and empathetic
             recommendation message.
 
-            The message should:
-            - Acknowledge the customer's experience naturally.
-            - Sound helpful and respectful, never pushy or sales-like.
-            - Be concise: one short sentence only.
-            - If the customer is satisfied or the review is casual,
-            present the alternatives as optional, without implying
-            that they need a new phone.
-            - If the review is negative, acknowledge their concern
-            briefly and suggest the alternatives as an optional
-            exchange.
-
             Return ONLY valid JSON:
 
             {{
@@ -130,17 +122,22 @@ def create_recommendation_tool(llm):
             """
         )
 
+        # Convert the LLM response into normal text
         raw_result = get_text(response.content)
 
         try:
+            # Convert JSON text into a Python dictionary
             result = json.loads(raw_result)
 
-            valid_products = set(candidates["Product Name"])
+            # Get valid product names from MySQL results
+            valid_products = {
+                row["product_name"] for row in candidates
+            }
 
             suggestion_1 = result["suggestion_1"]
             suggestion_2 = result["suggestion_2"]
 
-            # Validate LLM recommendations
+            # Make sure the LLM selected valid and different phones
             if (
                 suggestion_1 not in valid_products
                 or suggestion_2 not in valid_products
@@ -156,16 +153,17 @@ def create_recommendation_tool(llm):
 
         except (json.JSONDecodeError, KeyError, ValueError):
 
-            # Safe fallback if LLM returns invalid output
-            fallback = candidates.head(2)
+            # Use the first two valid candidates if LLM output fails
+            fallback = candidates[:2]
 
             return json.dumps({
-                "suggestion_1": fallback.iloc[0]["Product Name"],
-                "suggestion_2": fallback.iloc[1]["Product Name"],
+                "suggestion_1": fallback[0]["product_name"],
+                "suggestion_2": fallback[1]["product_name"],
                 "message": (
                     "If you're considering an exchange, "
                     "you can also explore these similar-priced phones."
                 )
             })
 
+    # Return the configured recommendation tool
     return recommend_products

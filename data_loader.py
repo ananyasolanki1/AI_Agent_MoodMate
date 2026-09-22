@@ -1,11 +1,9 @@
-import pandas as pd   # Data analysis library
+import pandas as pd
 
-def load_reviews(limit=5):
+
+def load_reviews(limit=1):
+    # Load review data from the CSV
     df = pd.read_csv("data/redmi_reviews.csv")
-    
-    # Convert each row into a dictionary (each row = one record)
+
+    # Convert selected rows into dictionaries for the agent
     return df.head(limit).to_dict(orient="records")
-
-
-def load_mobile_details():
-    return pd.read_csv("data/mobile_details.csv")

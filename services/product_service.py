@@ -1,40 +1,78 @@
-import pandas as pd
+import mysql.connector
 
 
-MOBILE_DETAILS_PATH = "data/mobile_details.csv"
-
-
-def load_products():
-    return pd.read_csv(MOBILE_DETAILS_PATH)
+def get_connection():
+    # Connect to the MoodMate MySQL database
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="rootroot",
+        database="moodmate"
+    )
 
 
 def get_product(product_name):
-    products = load_products()
+    # Find a product by name
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
 
-    product = products[
-        products["Product Name"].str.lower() == product_name.lower()
-    ]
+    cursor.execute(
+        """
+        SELECT *
+        FROM products
+        WHERE LOWER(product_name) = LOWER(%s)
+        """,
+        (product_name,)
+    )
 
-    if product.empty:
-        return None
+    product = cursor.fetchone()
 
-    return product.iloc[0]
+    cursor.close()
+    connection.close()
+
+    # Return None if the product doesn't exist
+    return product
 
 
 def get_similar_price_products(product_name, price):
-    products = load_products()
-
+    # Find phones within ±20% of the current phone's price
     lower_price = price * 0.80
     upper_price = price * 1.20
 
-    candidates = products[
-        (products["Price"] >= lower_price)
-        & (products["Price"] <= upper_price)
-        & (products["Product Name"].str.lower() != product_name.lower())
-    ].copy()
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
 
-    candidates["price_difference"] = (
-        candidates["Price"] - price
-    ).abs()
+    cursor.execute(
+        """
+        SELECT *
+        FROM products
+        WHERE price BETWEEN %s AND %s
+        AND LOWER(product_name) != LOWER(%s)
+        ORDER BY ABS(price - %s)
+        LIMIT 8
+        """,
+        (lower_price, upper_price, product_name, price)
+    )
 
-    return candidates.sort_values("price_difference").head(8)
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return products
+
+
+def get_all_products():
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT product_name FROM products ORDER BY product_name"
+    )
+
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return [product["product_name"] for product in products]
