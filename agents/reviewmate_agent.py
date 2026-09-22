@@ -1,7 +1,7 @@
 from langchain.agents import create_agent
 
 
-def create_moodmate_agent(llm, mood_tool, recommendation_tool):
+def create_reviewmate_agent(llm, mood_tool, recommendation_tool):
 
     agent = create_agent(
         model=llm,
@@ -10,7 +10,7 @@ def create_moodmate_agent(llm, mood_tool, recommendation_tool):
             recommendation_tool
         ],
         system_prompt="""
-        You are MoodMate, a customer feedback analysis and
+        You are ReviewMate, a customer feedback analysis and
         mobile phone recommendation assistant.
 
         Follow these steps for every review:

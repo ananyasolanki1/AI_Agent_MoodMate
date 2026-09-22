@@ -12,7 +12,7 @@ products = get_all_products()
 
 def process_review(product_name, review_title, rating, category, comments):
 
-    # Send review to MoodMate agent
+    # Send review to ReviewMate agent
     result = agent.invoke(
         {
             "messages": [
@@ -136,11 +136,11 @@ def show_recommendation(data):
         </div>
         """
 
-    moodmate_message = f"""
-    <div class="moodmate-message">
+    reviewmate_message = f"""
+    <div class="reviewmate-message">
 
         <div class="message-title">
-            💬 MoodMate
+            💬 ReviewMate
         </div>
 
         <div class="message-text">
@@ -151,7 +151,7 @@ def show_recommendation(data):
     """
 
     return (
-        moodmate_message,
+        reviewmate_message,
         product_card(suggestion_1),
         product_card(suggestion_2)
     )
@@ -249,9 +249,9 @@ body,
 }
 
 
-/* ---------- MoodMate message ---------- */
+/* ---------- ReviewMate message ---------- */
 
-.moodmate-message {
+.reviewmate-message {
     margin-top: 30px;
     margin-bottom: 25px;
     padding: 22px 25px;
@@ -330,14 +330,14 @@ footer {
 with gr.Blocks(
     theme=gr.themes.Soft(),
     css=custom_css,
-    title="MoodMate"
+    title="ReviewMate"
 ) as app:
 
     # Header
     gr.Markdown(
         """
         <div id="header">
-            <h1>📱 MoodMate</h1>
+            <h1>📱 ReviewMate</h1>
         </div>
         """,
         elem_id="header"
@@ -414,13 +414,13 @@ with gr.Blocks(
     recommendation_data = gr.State()
 
     show_button = gr.Button(
-        "🔍 Show Recommendation",
+        "🔍 Show Recommendations for phone exchange",
         visible=False,
         variant="secondary",
         elem_id="recommend-btn"
     )
 
-    # MoodMate message
+    # ReviewMate message
     recommendation_message = gr.HTML(
         visible=False
     )

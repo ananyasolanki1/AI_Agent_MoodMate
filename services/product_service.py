@@ -1,12 +1,15 @@
+import os
 import mysql.connector
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def get_connection():
-    # Connect to the MoodMate MySQL database
+    # Connect to the ReviewMate MySQL database
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="rootroot",
+        password=os.getenv("MYSQL_PASSWORD"),
         database="moodmate"
     )
 

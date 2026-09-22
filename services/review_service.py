@@ -1,4 +1,8 @@
+import os
 import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def clean_rating(rating):
     # Extract the numeric rating from text like "3.0 out of 5 stars"
@@ -12,7 +16,7 @@ def get_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="rootroot",
+        password=os.getenv("MYSQL_PASSWORD"),
         database="moodmate"
     )
 
