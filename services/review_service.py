@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def clean_rating(rating):
     # Extract the numeric rating from text like "3.0 out of 5 stars"
     if isinstance(rating, str):
@@ -11,13 +12,15 @@ def clean_rating(rating):
 
     return float(rating)
 
+
 def get_connection():
-    # Connect to the MoodMate database
+    # Connect to the MySQL database using environment variables
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password=os.getenv("MYSQL_PASSWORD"),
-        database="moodmate"
+        host=os.getenv("MYSQLHOST", "localhost"),
+        port=int(os.getenv("MYSQLPORT", 3306)),
+        user=os.getenv("MYSQLUSER", "root"),
+        password=os.getenv("MYSQLPASSWORD"),
+        database=os.getenv("MYSQLDATABASE", "moodmate")
     )
 
 

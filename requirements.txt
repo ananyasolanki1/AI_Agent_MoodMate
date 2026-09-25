@@ -1,0 +1,6 @@
+gradio
+langchain
+langchain-groq
+mysql-connector-python
+python-dotenv
+pandas
